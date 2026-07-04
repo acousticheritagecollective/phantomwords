@@ -5,331 +5,269 @@
 AUDIENCE WORD TRANSMITTER: https://acousticheritagecollective.org/phantomwords/audience.html
 ARTIST WORD RECEIVER: https://acousticheritagecollective.org/phantomwords/artist.html 
 
+# Phantom Words — behaviour guide
 
-# Phantom Words — cloud behaviour guide
+**Ginebra Raventós — Phantom Words**
+
+Files on the host, all in the same `phantomwords/` folder:
+`audience.html` (the public's phone page) · `artist.html` (your console + projection)
+· `api.php` (backend, PHP + SQLite, zero configuration — creates
+`phantomwords.sqlite` by itself) · `.htaccess` (protects the data file)
+· `bg.jpeg` (audience background image, optional) · your self-hosted font files.
 
 All visual behaviour lives in **`artist.html`**, inside the `<script>` block.
 Per-word personality: **`ensureNode()`** · global rendering: **`frame()`** ·
-colour palettes: the **`THEMES`** object · realtime: the **`poll()`** function.
-Edit with any text editor, save, reload the page. No other file needs touching.
-
-Tip: change ONE number at a time and reload — fastest way to build intuition.
+colour palettes: the **`THEMES`** object · realtime: **`poll()`**.
+Edit, save, reload. Change ONE number at a time.
 
 ---
 
-## 1. Colour themes & the ◐ invert button
+## 0. The console at a glance
 
-The page **starts in the light theme** (whitish background `#e9e9eb`, words in
-`#28282a` at varying opacity). The ◐ button switches live to the dark theme
-(background `#28282a`, words in light greys). To start dark instead, change:
+Sidebar, top to bottom: title · live stats (received / unique / **link** — ON
+green, OFF red) · **Session Name** and **Location** boxes (whatever you type is
+printed live in small italic serif at the bottom-left of the projection, and is
+included in PNG snapshots) · activity log · repetition ranking · button bar.
 
-```js
-let inverted = true;   // light theme by default  →  false = start dark
-```
+Buttons: **CSV / TXT** export the ranking · **PNG** instant snapshot (full
+resolution, active theme, includes the session caption) · **Timeline / Cloud**
+switches display mode (§3) · **◐** inverts colours (§1) · **Reset** (two clicks)
+wipes the database, the screen, the thread, the time span and the session boxes.
 
-Every canvas colour (background, trail fade, fog, constellation lines, trajectory
-traces, glitches) comes from the `THEMES` object — retint the piece by editing
-only that block.
+## 1. Colour themes & ◐
 
-- **Light theme hierarchy = opacity**: once-seen words are faint (base 0.18–0.40,
-  random per word), the most repeated word reaches 0.95, never fully solid:
+Starts in the **light theme** (`#e9e9eb` background, words in `#28282a` at
+varying opacity). ◐ switches live to dark (`#28282a` background, light greys).
+Start dark instead: `let inverted = true;` → `false`.
 
-```js
-const base = 0.18 + (nd.shade - 60) / 80 * 0.22;
-ctx.globalAlpha = Math.min(0.95, base + rel * 0.6);
-```
+Every canvas colour lives in the `THEMES` object — background, trail fade, fog,
+constellation lines, trajectory traces, timeline thread, glitches. Retint the
+piece by editing only that block.
 
-- **Dark theme hierarchy = brightness**: random base grey (`shade`, §9) that
-  brightens with repetitions, capped at 200 (never pure white).
+- **Light theme hierarchy = opacity**: once-seen words faint (base 0.18–0.40,
+  random per word), champion reaches 0.95, never solid.
+- **Dark theme hierarchy = brightness**: random base grey (`shade`, §8)
+  brightening with repetitions, capped at 200, never white.
 
-The PNG snapshot always captures whichever theme is active. The sidebar console
-keeps its own dark styling in both themes — only the cloud inverts.
+The audience page shares the light palette via the CSS variables at the top of
+its `<style>` (currently all-black ink at the artist's request).
 
-## 2. Speed of movement
+## 2. Movement
 
 In `ensureNode()`:
 
 ```js
-speed: .00005 + Math.random() * .00010,   // current: very slow
+speed: .00005 + Math.random() * .00010,   // very slow (current)
+wobble: .005 + Math.random() * .012,      // travel distance (short)
 ```
 
-| feeling         | try                             |
+| feeling         | speed range                     |
 |-----------------|---------------------------------|
 | almost frozen   | `.00002 + Math.random()*.00004` |
 | current (slow)  | `.00005 + Math.random()*.00010` |
-| previous (calm) | `.00012 + Math.random()*.00025` |
 | lively          | `.0004  + Math.random()*.0008`  |
 
-Relative speeds of each motion, in `frame()`:
+In `frame()` — free wander, no constant orbit:
 
 ```js
 const wob = Math.sin(t * nd.speed + nd.phase) * nd.wobble;   // in/out pulse
-const angDrift = nd.dir * (                                  // free wander:
-    Math.sin(t * nd.speed * 0.60 + nd.phase * 2) * 0.05      //  two overlapping
-  + Math.sin(t * nd.speed * 0.23 + nd.phase2)    * 0.08      //  swings, bounded
-);
-const ang = nd.baseAngle + angDrift;                         // no constant orbit
-ctx.rotate(nd.rot + Math.sin(t * nd.speed * 0.4 + nd.phase) * 0.03);  // tilt wobble
+const angDrift = nd.dir * (                                  // two overlapping
+    Math.sin(t * nd.speed * 0.60 + nd.phase * 2) * 0.05      // swings, bounded:
+  + Math.sin(t * nd.speed * 0.23 + nd.phase2)    * 0.08      // short strokes,
+);                                                           // never a circle
 ```
 
-There is **no constant rotation**: each word meanders back and forth in short
-strokes. `nd.dir` (set randomly to `+1` or `-1` in `ensureNode()`) gives every
-word its own turning sense, so trajectories go both ways. The `0.05` and `0.08`
-are the two swing amplitudes in radians — raise them for wider arcs, lower for
-tighter scribbles. To bring back a slow collective orbit, add
-`+ t * nd.speed * 0.08` to `ang` (multiply by `nd.dir` to keep mixed directions).
+`nd.dir` (random `+1`/`-1`) gives each word its own turning sense — half swing
+one way, half the other, all reversing naturally. Raise `0.05`/`0.08` for wider
+arcs, lower for tighter scribbles.
 
-## 3. Amplitude / travel distance
+Mode-switch / ranking-change easing: `nd.px += (tx - nd.px) * 0.035;` —
+`0.01` ceremonial migrations, `0.1` snappy.
 
-- `wobble: .005 + Math.random() * .012` in `ensureNode()` → in/out travel as a
-  fraction of the cloud radius (currently short). Double for floatier words.
-- `* 0.03` inside `ctx.rotate(...)` → tilt wobble in radians.
+## 3. Cloud mode vs Timeline mode
 
-## 4. Trajectory traces (the fine path lines)
-
-Each word records its position every 200 ms and draws a thin line through its
-last 40 samples (~8 s of path), crisp at the word and fading to nothing at the
-tail. In `frame()`, inside the word loop:
+**Cloud (default)** — rank maps to distance from centre with an equal-area
+spread, stretched to the full screen through a **superellipse** boundary:
 
 ```js
-if (t - nd.lastSample > 200){ ... }        // 200 = sampling interval (ms)
-if (nd.hist.length > 40) nd.hist.shift();  // 40 = samples kept → 40×200ms = 8s of path
-ctx.lineWidth = devicePixelRatio * 0.6;    // line thickness
-ctx.strokeStyle = theme().trace(0.22 * fade);   // 0.22 = max opacity at the fresh end
+const base = n <= 1 ? 0 : Math.sqrt(i / (n - 1));            // equal-area
+nd.targetR = Math.min(1, Math.max(0, base * 0.92 + nd.jitter));
+...
+MAXRX = W * 0.46;  MAXRY = H * 0.44;    // reach: full width AND height
+const P = 3.5;   // 2 = ellipse · 3.5 = rounded rectangle · 8 = almost rect
 ```
 
-- Longer memory: raise `40` (and/or the `200` ms) — e.g. `80` samples ≈ 16 s.
-- More visible: raise `0.22`; ghostlier: lower it.
-- Trace colour per theme: the `trace:` entries in `THEMES`.
-- Disable: delete the whole `if (nd.hist.length > 1){ ... }` block.
+- `Math.sqrt` keeps the outer rings populated and separates the top words from
+  the exact centre (plain `x` = old centre-heavy look).
+- `nd.jitter` (`±0.1`, set in `ensureNode()`) breaks the rings formed by
+  equal-count words — raise for messier, `0` for exact rings.
+- Raise `P` to push words into the corners; `0.92` = outer margin.
 
-## 5. Ghost trails / motion blur
+**Timeline** — X is fixed by each word's **first-arrival timecode**, scaled from
+the session's first word (left) to the latest (right); the axis rescales as new
+words arrive. All movement lives on the Y axis:
 
-The `trail` value inside each theme, e.g. `"rgba(233,233,235,0.10)"`.
-The **last number** is how strongly each frame erases the previous one:
-`0.04` long smears · `0.10` current · `0.25` crisp · `1.0` off.
-The RGB must equal that theme's background (light: 233,233,235 · dark: 40,40,42)
-or trails smear toward the wrong colour.
+```js
+tx = W * 0.05 + span * W * 0.90;          // horizontal margins of the axis
+const offY = Math.sin(nd.baseAngle * 3);  // fixed per-word lane
+ty = CY + ( offY * 0.34                   // lane spread around the axis
+          + wob * 3                       // vertical breathing
+          + angDrift * 0.5 ) * MAXRY;     // vertical wander
+```
 
-## 6. Word size (currently −30%)
+A faint horizontal axis is drawn at `theme().lines(0.15)`. Switching modes
+morphs smoothly (the easing above) — the transition is performable.
+
+## 4. The timeline thread (permanent lines)
+
+Every arrival draws a straight line from the previous word to the new one —
+**it never fades**; the thread is the session's chronological record and only
+Reset clears it. Drawn each frame between the words' live positions:
+
+```js
+ctx.strokeStyle = theme().lines(0.3);     // thread opacity
+ctx.lineWidth = devicePixelRatio * 0.7;   // thickness
+if (links.length > 2000) links.shift();   // safety cap only
+```
+
+Consecutive repeats of the same word draw no line (the glitch burst covers it).
+
+## 5. Trajectory traces (fine path lines)
+
+Each word samples its position every 200 ms and draws a thin line through its
+last 40 samples (~8 s), crisp at the word, fading at the tail:
+
+```js
+if (t - nd.lastSample > 200){ ... }        // sampling interval
+if (nd.hist.length > 40) nd.hist.shift();  // samples kept (40 × 200ms = 8s)
+ctx.strokeStyle = theme().trace(0.22 * fade);   // opacity at the fresh end
+```
+
+Longer memory: raise `40`; ghostlier: lower `0.22`; disable: delete the
+`if (nd.hist.length > 1){ ... }` block.
+
+## 6. Ghost trails / motion blur
+
+The `trail` value in each theme — the last number is per-frame erasure:
+`0.04` long smears · `0.10` current · `0.25` crisp · `1.0` off. Its RGB must
+equal that theme's background or trails smear toward the wrong colour.
+
+## 7. Word size
 
 ```js
 const rel  = maxCount > 1 ? (nd.count - 1) / (maxCount - 1) : 0;
 const size = (12 + Math.pow(rel, 0.55) * 65) * devicePixelRatio;
 ```
 
-`rel` runs 0 (word seen once) → 1 (current most-repeated word).
+`rel`: 0 = word seen once → 1 = current champion. `12` = minimum px · `65` =
+champion's extra (max ≈ 77 px) · `0.55` = curve (`1.0` linear, lower inflates
+mid-ranked words — current — `1.5` reserves bigness for champions).
+`rel` also drives opacity/brightness.
 
-- `12` → px size of a once-seen word
-- `65` → extra px for the champion, max ≈ 77 px
-- `0.55` → the curve: `1.0` linear · lower inflates mid-ranked words (current,
-  so words with a few repetitions are clearly visible) · `1.5` only champions huge
-
-`rel` also drives opacity/brightness, so colour follows the same curve.
-
-## 7. Placement (centre ↔ edges)
-
-In `rebuild()`:
+## 8. Per-word randomness (assigned once, kept forever)
 
 ```js
-const base = n <= 1 ? 0 : Math.sqrt(i / (n - 1));           // equal-area spread
-nd.targetR = Math.min(1, Math.max(0, base * 0.92 + nd.jitter));
+t0: tc,                                   // first-arrival timecode (timeline X)
+baseAngle: Math.random() * Math.PI * 2,   // direction from centre / lane seed
+rot: (Math.random() - .5) * 0.07,         // resting tilt ±2°; 0 = horizontal
+dir: Math.random() < .5 ? -1 : 1,         // turning sense
+jitter: (Math.random() - .5) * 0.2,       // radial offset ±10%
+font: FONTS[...],
+shade: 60 + (Math.random() * 80) | 0      // dark: base grey · light: base opacity
 ```
 
-- `Math.sqrt(...)` distributes words by **equal area** instead of equal radius:
-  without it, the top words pile onto the centre and the outer rings look empty.
-  Replace `sqrt(x)` with `x` for the old centre-heavy look, or `Math.pow(x, 0.7)`
-  for something in between.
-- `0.92` keeps words slightly off the extreme edge (lower = more margin).
-- `nd.jitter` is a fixed per-word radial offset (`±0.06`, set in `ensureNode()`)
-  that breaks the perfect rings otherwise formed by words with equal counts —
-  currently `±0.1` (factor `0.2`); raise for a messier spread, `0` for exact rings.
+Animated tilt on top: `* 0.03` in `ctx.rotate(...)` = ±1.7° breathing sway.
 
-Cloud reach, in `resize()`: `MAXRX = W * 0.46` (horizontal) and
-`MAXRY = H * 0.44` (vertical) — the cloud stretches to the full screen, not a
-circle. In `frame()`, the boundary is a **superellipse**:
+## 9. Fonts
 
-```js
-const P = 3.5;   // 2 = pure ellipse · 3.5 = rounded rectangle · 8 = almost rect
-```
+The pool = 10 system fonts + 11 self-hosted (Sofia Pro Light, Chapbook,
+BLHelium BoldCond, BLHelium BookWide, Roboto Medium, GT America Compressed
+Light, Roboto Condensed Light, Letter Gothic Std, Myriad Pro, Bodoni 72
+Oldstyle, Saga). Each word picks one at random on first appearance, forever.
 
-Raise `P` to push words deeper into the corners; `2` restores a smooth oval.
-`MAXR` still exists for fog and constellation-line scale.
-
-Glide when the ranking changes, in `frame()`:
-`nd.r += (nd.targetR - nd.r) * 0.01;` — currently ceremonial; `0.05` snappier.
-
-## 8. Glitch discharges (two words within 3 s)
-
-Two words arriving less than `GLITCH_WINDOW` ms apart fire a glitch between them:
-jagged lightning re-randomised every frame, flicker dropout, scanline slashes.
-The *same* word twice within the window → radial burst around it instead.
-
-```js
-const GLITCH_WINDOW = 3000;              // coincidence window (ms)
-glitches.length < 5                      // max simultaneous
-life: 500 + Math.random() * 500          // flash duration (ms)
-const flick = Math.random() < 0.75;      // fraction of frames visible
-const off = (Math.random()-.5) * 40 ...  // jaggedness (px)
-theme().glitch(0.55 * k)                 // line opacity · slashes 0.18
-```
-
-Busy audience → coincidences become constant; shrink the window to ~1000 or cap
-to 2 for rare, striking events. Delete the `/* glitch discharges */` block in
-`frame()` to disable.
-
-## 9. Per-word randomness (assigned once, kept forever)
-
-In `ensureNode()`:
-
-```js
-baseAngle: Math.random() * Math.PI * 2,   // direction from centre
-rot: (Math.random() - .5) * 0.07,         // resting tilt ±2°; 0 = all horizontal
-font: FONTS[...],                          // random pick from the FONTS list
-shade: 60 + (Math.random() * 80) | 0      // dark theme: base grey 60–140
-                                          // light theme: feeds base opacity
-```
-
-Edit the `FONTS` array for the typographic mix — one entry = uniform cloud.
-
-### Changing the cloud's font list
-
-The pool lives near the top of the script in `artist.html`:
-
-```js
-const FONTS = [
-  "Georgia","'Times New Roman'","'Courier New'","Verdana","'Trebuchet MS'",
-  "Palatino","Garamond","'Arial Black'","'Brush Script MT'","'Lucida Console'"
-];
-```
-
-Each word picks one at random on first appearance and keeps it forever.
-Add or remove entries freely; names containing spaces need the inner quotes,
-exactly like `"'Times New Roman'"`. These are *system* fonts — they must exist
-on the machine running the artist page, otherwise the browser silently
-substitutes a default. Check the mix once on the actual show computer.
-
-### Using your own font files (self-hosted, guaranteed identical everywhere)
-
-Drop the font files (`.woff2` is best, `.ttf`/`.otf` also work) into the
-`phantomwords/` folder on your host, then do two things in `artist.html`:
-
-**1.** Declare each font at the top of the `<style>` block:
+**Adding a self-hosted font**: drop the file in `phantomwords/`, then in
+`artist.html`: (1) an `@font-face` at the top of `<style>`:
 
 ```css
-@font-face{
-  font-family:'MiFuente';
-  src:url('mifuente.woff2') format('woff2');
-}
+@font-face{font-family:'MyFont';src:url('myfont.woff2') format('woff2');font-display:swap;}
 ```
 
-**2.** Add its name to the `FONTS` array — and preload it so the canvas can use
-it from the very first frame (canvas text does NOT trigger font loading by
-itself). Right after the `FONTS` array, add one line per custom font:
+(2) add `"'MyFont'"` to the `FONTS` array. The preload line
+(`FONTS.slice(10).forEach(...)`) fetches every entry after the first 10
+automatically — keep custom fonts after the system ones. Filenames are
+**case-sensitive** on the server. FontAwesome was deliberately excluded — it's
+an icon font, words would render as blank boxes.
+
+Curation tip: delete the system-font lines to let only your 11 speak.
+
+## 10. Constellation lines, fog & glitches
 
 ```js
-document.fonts.load("20px 'MiFuente'");
+const link = MAXR * 0.35;                 // constellation: max distance for a line
+theme().lines(0.05 * (1 - d/link))        // 0.05 = max opacity
 ```
-
-Repeat the pair for every font file. Free fonts to self-host legally:
-fonts.google.com (download the family, take the .ttf, or convert to .woff2
-with any online converter). Self-hosting keeps the piece identical on any
-computer and works even without internet at the venue.
-
-## 10. Constellation lines & fog
-
-```js
-const link = MAXR * 0.35;                 // max distance for a constellation line
-theme().lines(0.05 * (1 - d/link))        // 0.05 = max line opacity (try 0.12)
-```
-Delete the double `for` loop over `pts` to remove lines.
 
 ```js
 Array.from({length:4}, ...)               // fog patches
-theme().fog                                // fog strength (light: 0.03 · dark: 0.012)
-s: 15000 + ...                             // drift speed (bigger = slower)
-r: .25 + ...                               // patch size (fraction of cloud radius)
+theme().fog                                // strength (light 0.03 · dark 0.012)
 ```
-Fog accumulates through the trail effect — tiny changes are visible.
 
-## 11. Realtime, rate limits & housekeeping
+Glitches — two words arriving within `GLITCH_WINDOW = 3000` ms fire a jagged
+discharge between them (same word twice → radial burst): `glitches.length < 5`
+max simultaneous · `life: 500 + Math.random()*500` · flicker `0.75` ·
+jaggedness `40` px · opacities `0.55` line / `0.18` scanlines. Busy audience →
+shrink the window to ~1000 for rare, striking events.
+
+## 11. Realtime, rate limits & the live show
 
 ```js
-let pollDelay = 2000;                     // artist page asks the server every 2s
-pollDelay = Math.min(pollDelay*2, 15000); // on errors: backs off 4s → 8s → 15s
+let pollDelay = 2000;                     // console polls the server every 2s
+pollDelay = Math.min(pollDelay*2, 15000); // on errors backs off 4s → 8s → 15s
 ```
 
-If the server answers **429 Too Many Requests** (shared-hosting per-IP limit),
-the artist page backs off automatically and the audience page shows
-"the room is crowded — wait a moment and try again" instead of failing.
+On **429 Too Many Requests** (shared-hosting per-IP limit) the console backs
+off automatically and the audience page shows "the room is crowded — wait a
+moment and try again". Know this for the show: hosts rate-limit **per IP**, and
+an audience on the venue WiFi shares one public IP. In order of effort: ask the
+audience to use **mobile data** (each phone = own IP, put it next to the QR);
+ask your host to raise the limit for this folder; or move `api.php` to a small
+VPS. PHP + SQLite itself handles a 100-person audience fine — the ceiling is
+the host's limiter, not the database.
 
-For a live show, know this: shared hosts rate-limit **per IP address**. A single
-person testing everything from one machine can trip it; more importantly, an
-audience on the **venue WiFi shares one public IP** and can trip it together.
-In rough order of effort: ask the audience to use **mobile data** (each phone =
-its own IP); ask your hosting provider to raise/disable the limit for this
-folder; or move `api.php` to a small VPS or a realtime service. PHP + SQLite
-itself handles a 100-person audience without trouble — the ceiling is the
-host's limiter, not the database.
-
-Other knobs:
-- `while (logEl.children.length > 200)` → lines kept in the activity log
-- `setTimeout(disarm, 4000)` → reset-confirmation window
-- Buttons: CSV / TXT export the ranking · PNG saves an instant snapshot (full
-  resolution, opaque background, active theme) · ◐ inverts colours ·
-  Reset (two clicks) wipes the database and the screen
+**Pre-show checklist**: upload all files + fonts + `bg.jpeg` · open artist.html
+on the show machine, check link = ON and all fonts load (F12 → Network, all
+200) · send a test word from a phone on mobile data · fill Session Name /
+Location · Export CSV of the test, then Reset · rehearse the Timeline ↔ Cloud
+morph and ◐. During: PNG for captures. After: CSV/TXT before Reset — the
+export always captures the current state.
 
 ## 12. UI text sizes (CSS)
 
-These are interface sizes, independent from the cloud (§6). All in the
-`<style>` block of each file — find the selector, change the `font-size`.
+**Artist console** (`artist.html`): title `aside header h1` 14px · subtitle
+`aside header p` 10px · stats `.stats b` 18px / `.stats span` 9px · section
+labels `.zone-label` 9px · session boxes `.session input` 11px · log `#log`
+11px · ranking `#rank table` 12px / words `#rank td.w` 13px · buttons
+`.export button` 11px · waiting text `#empty` 22px. Sidebar lines: `--line`
+(currently `#85858f`) · bright labels: `#c9c9d1` · session caption on the
+projection: `13px Georgia italic`, bottom-left, in the caption block at the end
+of `frame()`.
 
-**Artist console (`artist.html` sidebar):**
-
-| element                    | selector             | current            |
-|----------------------------|----------------------|--------------------|
-| "phantom words" title      | `aside header h1`    | `font-size:20px`   |
-| subtitle under it          | `aside header p`     | `font-size:10px`   |
-| big numbers (received…)    | `.stats b`           | `font-size:18px`   |
-| labels under the numbers   | `.stats span`        | `font-size:9px`    |
-| section labels             | `.zone-label`        | `font-size:9px`    |
-| activity log lines         | `#log`               | `font-size:11px`   |
-| ranking table numbers      | `#rank table`        | `font-size:12px`   |
-| ranking table words        | `#rank td.w`         | `font-size:13px`   |
-| bottom buttons             | `.export button`     | `font-size:11px`   |
-| "waiting for the first…"   | `#empty`             | `font-size:22px`   |
-
-**Audience page (`audience.html`):**
-
-| element                  | selector      | current                       |
-|--------------------------|---------------|-------------------------------|
-| "Ginebra Raventós" line  | `.eyebrow`    | `font-size:11px`              |
-| main title               | `h1`          | `clamp(26px,8vw,40px)`        |
-| invitation paragraph     | `.intro`      | `font-size:16px`              |
-| instruction lines        | `.rules`      | `font-size:12px`              |
-| the text box             | `textarea`    | `font-size:20px`              |
-| SEND button              | `button`      | `font-size:14px`              |
-| status message           | `.status`     | `font-size:12px`              |
-| footer line              | `footer`      | `font-size:10px`              |
-
-The title uses `clamp(min, preferred, max)`: it scales with the phone width
-(`8vw` = 8% of screen width) but never below 26px nor above 40px — adjust any
-of the three values. Keep `textarea` at 16px or larger: below that, iPhones
-auto-zoom into the page when the box is tapped.
-
-The audience page shares the cloud's light palette (`#e9e9eb` background, ink
-in opacities of `#28282a`) via the CSS variables at the top of its `<style>`.
+**Audience** (`audience.html`): eyebrow `.eyebrow` 17px · title `h1`
+`clamp(13px,4vw,20px)` · intro `.intro` 16px · rules `.rules` 12px · textarea
+20px (keep ≥16px or iPhones auto-zoom) · SEND `button` 14px · status 12px ·
+footer 10px. All ink `#000`; textarea background `#fff`; background image
+`bg.jpeg` under a veil — the `.82` in the body's `linear-gradient` (lower =
+more image).
 
 ---
 
 ## Quick recipes
 
-**"Séance" — near-still, long memory:** speed `.00002–.00006`, trail `0.05`,
-trace samples `80`, glide `0.005`.
+**"Séance"** — speed `.00002–.00006`, trail `0.05`, trace samples `80`, easing `0.01`.
 
-**"Nervous swarm":** speed `.0004–.0012`, wobble `.02–.06`, trail `0.15`,
+**"Nervous swarm"** — speed `.0004–.0012`, wobble `.02–.06`, trail `0.15`,
 `GLITCH_WINDOW 5000`.
 
-**"Clean typographic poster":** speed ≈ `0`, trail `1.0`, delete fog +
-constellation + glitch + trace blocks, `rot: 0`, single font — works beautifully
-in the default light theme.
+**"Clean typographic poster"** — speed ≈ `0`, trail `1.0`, delete fog +
+constellation + glitch + trace blocks, `rot: 0`, single font. The timeline
+thread alone over this, in the light theme, is a beautiful minimal variant.
