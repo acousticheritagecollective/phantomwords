@@ -1,6 +1,10 @@
 
 <img width="2344" height="1546" alt="phantomwords-2026-07-03T22-16-52" src="https://github.com/user-attachments/assets/e12be14c-7751-4e89-bd9f-5740eff109da" />
 
+## TEST AT
+AUDIENCE WORD TRANSMITTER: https://acousticheritagecollective.org/phantomwords/audience.html
+ARTIST WORD RECEIVER: https://acousticheritagecollective.org/phantomwords/artist.html 
+
 
 # Phantom Words — cloud behaviour guide
 
