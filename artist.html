@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>phantom words — artist console</title>
+<style>
+  /* self-hosted fonts (files in this same folder) */
+  @font-face{font-family:'Sofia Pro Light';src:url('sofiapro-light.otf') format('opentype');font-display:swap;}
+  @font-face{font-family:'Chapbook';src:url('chapbook.regular.otf') format('opentype');font-display:swap;}
+  @font-face{font-family:'BLHelium BoldCond';src:url('BLHelium-BoldCondenced.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'BLHelium BookWide';src:url('BLHelium-BookWide.woff2') format('woff2');font-display:swap;}
+  @font-face{font-family:'Roboto Medium';src:url('Roboto-Medium.ttf') format('truetype');font-display:swap;}
+  @font-face{font-family:'GT America Compressed Light';src:url('GT-America-Compressed-Light.otf') format('opentype');font-display:swap;}
+  @font-face{font-family:'Roboto Condensed Light';src:url('RobotoCondensed-Light.ttf') format('truetype');font-display:swap;}
+  @font-face{font-family:'Letter Gothic Std';src:url('LetterGothicStd.otf') format('opentype');font-display:swap;}
+  @font-face{font-family:'Myriad Pro';src:url('MyriadPro-Regular.otf') format('opentype');font-display:swap;}
+  @font-face{font-family:'Bodoni 72 Oldstyle';src:url('bodoni-72-oldstyle-book.ttf') format('truetype');font-display:swap;}
+  @font-face{font-family:'Saga';src:url('Saga.ttf') format('truetype');font-display:swap;}
+
+  :root{
+    --bg:#28282a;
+    --panel:#08080b;
+    --line:#85858f;
+    --ink-hi:#d8d8dc;
+    --ink-mid:#8a8a92;
+    --ink-low:#45454d;
+    --mono:'Courier New',monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:var(--bg);color:var(--ink-mid);
+    font-family:var(--mono);
+    display:grid;grid-template-columns:340px 1fr;
+  }
+
+  /* ---------- sidebar ---------- */
+  aside{
+    background:var(--panel);border-right:1px solid var(--line);
+    display:flex;flex-direction:column;height:100vh;
+  }
+  aside header{
+    padding:18px 20px 14px;border-bottom:1px solid var(--line);flex:0 0 auto;
+  }
+  aside header h1{
+    font-family:'Courier New',monospace;font-weight:normal;
+    font-size:14px;color:var(--ink-hi);letter-spacing:.02em;
+  }
+  aside header p{font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:#c9c9d1;margin-top:6px}
+  .stats{
+    display:flex;gap:0;border-bottom:1px solid var(--line);flex:0 0 auto;
+  }
+  .stats div{flex:1;padding:10px 20px;border-right:1px solid var(--line)}
+  .stats div:last-child{border-right:0}
+  .stats b{display:block;color:var(--ink-hi);font-size:18px;font-weight:normal}
+  .stats span{font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-low)}
+
+  .session{
+    display:flex;gap:8px;padding:10px 20px;border-bottom:1px solid var(--line);flex:0 0 auto;
+  }
+  .session input{
+    flex:1;min-width:0;background:transparent;border:1px solid var(--line);border-radius:2px;
+    color:var(--ink-hi);font-family:var(--mono);font-size:11px;padding:6px 8px;outline:none;
+    transition:border-color .2s;
+  }
+  .session input:focus{border-color:var(--ink-low)}
+  .session input::placeholder{color:var(--ink-low)}
+
+  .zone-label{
+    padding:10px 20px 6px;font-size:9px;letter-spacing:.3em;
+    text-transform:uppercase;color:#c9c9d1;flex:0 0 auto;
+    border-top:1px solid var(--line);
+  }
+  aside .zone-label:first-of-type{border-top:0}
+
+  #log{
+    flex:0 0 30%;overflow-y:auto;padding:4px 20px 12px;
+    font-size:11px;line-height:1.8;
+  }
+  #log .row{color:var(--ink-low);animation:flash 1.2s ease-out}
+  #log .row b{color:var(--ink-hi);font-weight:normal}
+  @keyframes flash{from{color:var(--ink-hi)}to{color:var(--ink-low)}}
+
+  #rank{
+    flex:1 1 auto;overflow-y:auto;padding:4px 0 12px;
+  }
+  #rank table{width:100%;border-collapse:collapse;font-size:12px}
+  #rank td{padding:3px 20px;vertical-align:baseline}
+  #rank td.n{width:56px;text-align:right;color:var(--ink-hi);font-variant-numeric:tabular-nums}
+  #rank td.w{color:var(--ink-mid);font-family:'Courier New',monospace;font-size:13px}
+  #rank tr:first-child td{color:var(--ink-hi)}
+  #rank tr.bump td{background:rgba(216,216,220,.05)}
+
+  .export{
+    flex:0 0 auto;display:flex;gap:10px;padding:14px 20px calc(14px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);
+  }
+  .export button{
+    flex:1;background:transparent;border:1px solid var(--line);color:var(--ink-mid);
+    font-family:var(--mono);font-size:11px;letter-spacing:.25em;text-transform:uppercase;
+    padding:10px 0;cursor:pointer;transition:all .2s;border-radius:2px;
+  }
+  .export button:hover{border-color:var(--ink-low);color:var(--ink-hi)}
+  .export button.danger{flex:0 0 auto;padding:10px 14px;color:#9a6a6a;border-color:#3a2626}
+  .export button.danger:hover{color:#c98a8a;border-color:#6a3a3a}
+  .export button.danger.armed{background:#2a1414;color:#d89a9a;border-color:#8a4a4a}
+
+  ::-webkit-scrollbar{width:6px}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px}
+  ::-webkit-scrollbar-track{background:transparent}
+
+  /* ---------- stage ---------- */
+  #stage{position:relative;height:100vh;overflow:hidden}
+  canvas{position:absolute;inset:0;display:block}
+  #empty{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    color:var(--ink-low);font-family:'Courier New',monospace;font-size:22px;
+    pointer-events:none;transition:opacity 1.5s;
+  }
+</style>
+</head>
+<body>
+
+<aside>
+  <header>
+    <h1>phantom words</h1>
+    <p>artist console · live</p>
+  </header>
+  <div class="stats">
+    <div><b id="stTotal">0</b><span>received</span></div>
+    <div><b id="stUnique">0</b><span>unique</span></div>
+    <div><b id="stConn">…</b><span>link</span></div>
+  </div>
+
+  <div class="session">
+    <input id="sessName" type="text" placeholder="session name" autocomplete="off" spellcheck="false">
+    <input id="sessLoc"  type="text" placeholder="location" autocomplete="off" spellcheck="false">
+  </div>
+
+  <p class="zone-label">activity log</p>
+  <div id="log"></div>
+
+  <p class="zone-label">repetition ranking</p>
+  <div id="rank"><table><tbody id="rankBody"></tbody></table></div>
+
+  <div class="export">
+    <button id="expCsv">CSV</button>
+    <button id="expTxt">TXT</button>
+    <button id="expPng">PNG</button>
+    <button id="invert" title="invert colours">◐</button>
+    <button id="reset" class="danger">Reset</button>
+  </div>
+</aside>
+
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="empty">waiting for the first word…</div>
+</div>
+
+<script>
+/* Backend propio: api.php en la misma carpeta (PHP + SQLite) */
+const API = "api.php";
+
+/* ---------------- state ---------------- */
+const counts = new Map();          // word -> count
+const nodes  = new Map();          // word -> visual node
+let total = 0;
+let ranking = [];                  // sorted [word, count]
+let dirty = false;
+
+const FONTS = [
+  // system fonts
+  "Georgia","'Times New Roman'","'Courier New'","Verdana","'Trebuchet MS'",
+  "Palatino","Garamond","'Arial Black'","'Brush Script MT'","'Lucida Console'",
+  // self-hosted fonts (files in the phantomwords/ folder)
+  "'Sofia Pro Light'",
+  "'Chapbook'",
+  "'BLHelium BoldCond'",
+  "'BLHelium BookWide'",
+  "'Roboto Medium'",
+  "'GT America Compressed Light'",
+  "'Roboto Condensed Light'",
+  "'Letter Gothic Std'",
+  "'Myriad Pro'",
+  "'Bodoni 72 Oldstyle'",
+  "'Saga'"
+];
+
+/* preload the self-hosted fonts so the canvas can use them from the first
+   frame — canvas text does not trigger font loading by itself */
+FONTS.slice(10).forEach(f => document.fonts.load("20px " + f.replace(/'/g, "")).catch(()=>{}));
+/* note: FontAwesome.otf was deliberately NOT added — it's an icon font with no
+   regular letters, words rendered with it would show as blank boxes */
+
+/* ---------------- sidebar refs ---------------- */
+const logEl   = document.getElementById("log");
+const rankEl  = document.getElementById("rankBody");
+const stTotal = document.getElementById("stTotal");
+const stUnique= document.getElementById("stUnique");
+const stConn  = document.getElementById("stConn");
+const emptyEl = document.getElementById("empty");
+const sessName = document.getElementById("sessName");
+const sessLoc  = document.getElementById("sessLoc");
+
+let lastId = 0;
+let firstPoll = true;
+let pollDelay = 2000;                 // base poll interval (ms)
+
+/* ---- glitch: two words arriving within 3s spark a discharge ---- */
+const GLITCH_WINDOW = 3000;   // ms between arrivals to trigger
+const glitches = [];
+let lastArrival = null;       // {word, at}
+
+function ingest(row){
+  const w = String(row.w).slice(0, 40);
+  total++;
+  counts.set(w, (counts.get(w) || 0) + 1);
+  addLog(w, Number(row.t));
+  ensureNode(w);
+
+  const now = performance.now();
+  if (lastArrival && now - lastArrival.at < GLITCH_WINDOW && glitches.length < 5){
+    glitches.push({
+      a: lastArrival.word, b: w,
+      born: now,
+      life: 500 + Math.random() * 500   // 0.5–1s flash
+    });
+  }
+  lastArrival = { word: w, at: now };
+
+  dirty = true;
+  emptyEl.style.opacity = 0;
+}
+
+async function poll(){
+  try{
+    const res = await fetch(`${API}?action=poll&since=${lastId}`, {cache:"no-store"});
+    if (!res.ok) throw new Error("http " + res.status);
+    const data = await res.json();
+    for (const row of data.rows){
+      lastId = Math.max(lastId, row.id);
+      ingest(row);
+    }
+    stConn.textContent = "ON";
+    stConn.style.color = "#4db36a";
+    pollDelay = 2000;                 // healthy → normal rhythm
+  }catch(e){
+    stConn.textContent = "OFF";
+    stConn.style.color = "#d05050";
+    pollDelay = Math.min(pollDelay * 2, 15000);   // backoff: 4s, 8s, 15s…
+  }
+  firstPoll = false;
+  setTimeout(poll, pollDelay);
+}
+poll();
+
+function addLog(w, t){
+  const d = t ? new Date(t) : new Date();
+  const hh = String(d.getHours()).padStart(2,"0");
+  const mm = String(d.getMinutes()).padStart(2,"0");
+  const ss = String(d.getSeconds()).padStart(2,"0");
+  const row = document.createElement("div");
+  row.className = "row";
+  row.textContent = `${hh}:${mm}:${ss}  › `;
+  const b = document.createElement("b");
+  b.textContent = w;
+  row.appendChild(b);
+  logEl.prepend(row);
+  while (logEl.children.length > 200) logEl.lastChild.remove();
+}
+
+/* ---------------- ranking (throttled to animation frame) ---------------- */
+function rebuild(){
+  ranking = [...counts.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  stTotal.textContent  = total;
+  stUnique.textContent = counts.size;
+
+  const frag = document.createDocumentFragment();
+  for (const [w,c] of ranking){
+    const tr = document.createElement("tr");
+    const tdN = document.createElement("td"); tdN.className="n"; tdN.textContent = c;
+    const tdW = document.createElement("td"); tdW.className="w"; tdW.textContent = w;
+    tr.append(tdN, tdW);
+    frag.appendChild(tr);
+  }
+  rankEl.replaceChildren(frag);
+
+  // update cloud targets
+  const n = ranking.length;
+  ranking.forEach(([w,c], i) => {
+    const nd = nodes.get(w);
+    nd.count = c;
+    /* sqrt = equal-area distribution: separates the top words from the very
+       centre and pulls the crowd inward, so the middle ring isn't empty.
+       jitter breaks the perfect rings formed by words with equal counts. */
+    const base = n <= 1 ? 0 : Math.sqrt(i / (n - 1));
+    nd.targetR = Math.min(1, Math.max(0, base * 0.92 + nd.jitter));
+  });
+}
+
+/* ---------------- exports ---------------- */
+function download(name, text, mime){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], {type:mime}));
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+const stamp = () => new Date().toISOString().replace(/[:.]/g,"-").slice(0,19);
+document.getElementById("expCsv").onclick = () =>
+  download(`phantomwords-${stamp()}.csv`,
+    "count,word\n" + ranking.map(([w,c]) => `${c},"${w.replace(/"/g,'""')}"`).join("\n"),
+    "text/csv");
+document.getElementById("expTxt").onclick = () =>
+  download(`phantomwords-${stamp()}.txt`,
+    ranking.map(([w,c]) => `${c}\t${w}`).join("\n"),
+    "text/plain");
+
+/* instant PNG snapshot of the cloud */
+document.getElementById("expPng").onclick = () => {
+  // composite onto an opaque background so the PNG never has transparency
+  const out = document.createElement("canvas");
+  out.width = cv.width; out.height = cv.height;
+  const octx = out.getContext("2d");
+  octx.fillStyle = theme().bg;
+  octx.fillRect(0, 0, out.width, out.height);
+  octx.drawImage(cv, 0, 0);
+  out.toBlob(blob => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `phantomwords-${stamp()}.png`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }, "image/png");
+};
+
+/* ---------------- reset ---------------- */
+const resetBtn = document.getElementById("reset");
+let armed = false, armTimer;
+resetBtn.onclick = async () => {
+  if (!armed){
+    armed = true;
+    resetBtn.textContent = "Sure?";
+    resetBtn.classList.add("armed");
+    armTimer = setTimeout(disarm, 4000);   // auto-cancel after 4s
+    return;
+  }
+  clearTimeout(armTimer);
+  disarm();
+  try{
+    const res = await fetch(API + "?action=reset", {method:"POST"});
+    if (!res.ok) throw new Error("http " + res.status);
+  }catch(e){
+    addLog("reset failed", Date.now());
+    return;
+  }
+  lastId = 0;
+  // wipe local state
+  counts.clear();
+  nodes.clear();
+  ranking = [];
+  total = 0;
+  stTotal.textContent = "0";
+  stUnique.textContent = "0";
+  logEl.replaceChildren();
+  rankEl.replaceChildren();
+  sessName.value = "";
+  sessLoc.value  = "";
+  ctx.fillStyle = theme().bg;
+  ctx.fillRect(0,0,W,H);
+  emptyEl.style.opacity = 1;
+};
+function disarm(){
+  armed = false;
+  resetBtn.textContent = "Reset";
+  resetBtn.classList.remove("armed");
+}
+
+/* ---------------- theme (dark / inverted) ---------------- */
+let inverted = true;   // light theme by default
+const THEMES = {
+  dark: {
+    bg: "#28282a",
+    trail: "rgba(40,40,42,0.10)",
+    fogComp: "lighter",
+    fog: "rgba(120,120,135,0.012)",
+    lines: (a) => `rgba(150,150,165,${a})`,
+    trace: (a) => `rgba(170,170,182,${a})`,
+    glitch: (a) => `rgba(215,215,225,${a})`,
+    slash:  (a) => `rgba(200,200,212,${a})`
+  },
+  light: {
+    bg: "#e9e9eb",
+    trail: "rgba(233,233,235,0.10)",
+    fogComp: "multiply",
+    fog: "rgba(190,190,198,0.03)",
+    lines: (a) => `rgba(90,90,105,${a})`,
+    trace: (a) => `rgba(70,70,80,${a})`,
+    glitch: (a) => `rgba(45,45,52,${a})`,
+    slash:  (a) => `rgba(50,50,58,${a})`
+  }
+};
+const theme = () => inverted ? THEMES.light : THEMES.dark;
+
+document.getElementById("invert").onclick = () => {
+  inverted = !inverted;
+  ctx.fillStyle = theme().bg;
+  ctx.fillRect(0, 0, W, H);
+};
+
+/* ---------------- word cloud ---------------- */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let W, H, CX, CY, MAXR, MAXRX, MAXRY;
+
+function resize(){
+  const s = document.getElementById("stage");
+  W = cv.width  = s.clientWidth  * devicePixelRatio;
+  H = cv.height = s.clientHeight * devicePixelRatio;
+  cv.style.width  = s.clientWidth + "px";
+  cv.style.height = s.clientHeight + "px";
+  CX = W/2; CY = H/2;
+  MAXR  = Math.min(W,H) * 0.46;   // still used by fog & constellation scale
+  MAXRX = W * 0.46;               // horizontal reach (fraction of full width)
+  MAXRY = H * 0.44;               // vertical reach
+  ctx.fillStyle = theme().bg;
+  ctx.fillRect(0,0,W,H);
+}
+addEventListener("resize", resize);
+resize();
+
+function ensureNode(w){
+  if (nodes.has(w)) return;
+  nodes.set(w, {
+    text: w,
+    count: 1,
+    baseAngle: Math.random() * Math.PI * 2,   // fixed direction from center
+    rot: (Math.random() - .5) * 0.07,         // resting tilt ±0.035 rad ≈ ±2°
+    font: FONTS[(Math.random() * FONTS.length) | 0],
+    targetR: 1,
+    jitter: (Math.random() - .5) * 0.2,       // fixed radial offset (±10% of radius)
+    r: 1.05,                                  // enters from just outside
+    phase: Math.random() * Math.PI * 2,       // drift phase
+    phase2: Math.random() * Math.PI * 2,      // second phase (non-repeating wander)
+    dir: Math.random() < .5 ? -1 : 1,         // each word turns its own way
+    speed: .00005 + Math.random() * .00010,   // drift speed (slow)
+    wobble: .005 + Math.random() * .012,      // drift amplitude (short travel)
+    shade: 60 + (Math.random() * 80) | 0,     // base grey 60–140; repetitions add brightness
+    hist: [],                                 // recent positions → trajectory line
+    lastSample: 0
+  });
+}
+
+/* fog blobs */
+const fog = Array.from({length:4}, () => ({
+  a: Math.random()*Math.PI*2, d: .2 + Math.random()*.6,
+  s: 15000 + Math.random()*25000, r: .25 + Math.random()*.35, p: Math.random()*1e4
+}));
+
+function frame(t){
+  if (dirty){ rebuild(); dirty = false; }
+
+  /* fade instead of clear → motion trails / directional blur */
+  ctx.globalCompositeOperation = "source-over";
+  ctx.fillStyle = theme().trail;
+  ctx.fillRect(0,0,W,H);
+
+  /* fog */
+  ctx.globalCompositeOperation = theme().fogComp;
+  for (const f of fog){
+    const fx = CX + Math.cos(f.a + (t+f.p)/f.s) * MAXR * f.d;
+    const fy = CY + Math.sin(f.a*1.7 + (t+f.p)/f.s) * MAXR * f.d * .7;
+    const fr = MAXR * f.r;
+    const g = ctx.createRadialGradient(fx,fy,0,fx,fy,fr);
+    g.addColorStop(0, theme().fog);
+    g.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(fx,fy,fr,0,7); ctx.fill();
+  }
+  ctx.globalCompositeOperation = "source-over";
+
+  const maxCount = ranking.length ? ranking[0][1] : 1;
+  const pts = [];
+
+  for (const nd of nodes.values()){
+    /* ease radius toward ranking target */
+    nd.r += (nd.targetR - nd.r) * 0.01;
+
+    /* independent particle drift — slow, breathing-like */
+    const wob = Math.sin(t * nd.speed + nd.phase) * nd.wobble;
+    /* free wander: two incommensurate sines, per-word direction.
+       Bounded (never a full circle) → short meandering strokes, and each
+       word swings back and forth instead of orbiting clockwise. */
+    const angDrift = nd.dir * (
+        Math.sin(t * nd.speed * 0.60 + nd.phase * 2) * 0.05
+      + Math.sin(t * nd.speed * 0.23 + nd.phase2)    * 0.08
+    );
+
+    const radF = nd.r + wob;                 // 0 = centre, 1 = boundary
+    const ang = nd.baseAngle + angDrift;
+    const c = Math.cos(ang), s = Math.sin(ang);
+    /* superellipse boundary: stretches the cloud to the full width AND height
+       of the screen and bulges toward the corners, breaking the circle.
+       P = 2 → pure ellipse · 3.5 → rounded rectangle (current) · 8 → almost rect */
+    const P = 3.5;
+    const shape = Math.pow(Math.pow(Math.abs(c),P) + Math.pow(Math.abs(s),P), -1/P);
+    const x = CX + c * radF * MAXRX * shape;
+    const y = CY + s * radF * MAXRY * shape;
+    nd.x = x; nd.y = y;   // remembered for glitch rendering
+
+    /* trajectory trace: sample the path every 200ms, keep ~8s of history */
+    if (t - nd.lastSample > 200){
+      nd.lastSample = t;
+      const last = nd.hist[nd.hist.length - 1];
+      if (!last || Math.hypot(x - last.x, y - last.y) > devicePixelRatio){
+        nd.hist.push({x, y});
+      }
+      if (nd.hist.length > 40) nd.hist.shift();
+    }
+    if (nd.hist.length > 1){
+      ctx.lineWidth = devicePixelRatio * 0.6;
+      for (let h = 1; h < nd.hist.length; h++){
+        const fade = h / nd.hist.length;              // old segments faint, new crisp
+        ctx.strokeStyle = theme().trace(0.22 * fade);
+        ctx.beginPath();
+        ctx.moveTo(nd.hist[h-1].x, nd.hist[h-1].y);
+        ctx.lineTo(nd.hist[h].x, nd.hist[h].y);
+        ctx.stroke();
+      }
+    }
+
+    /* size from repetitions:
+       rel = 0 for words seen once (smallest, dimmest)
+       rel = 1 for the most repeated word (biggest, brightest) */
+    const rel = maxCount > 1 ? (nd.count - 1) / (maxCount - 1) : 0;
+    const size = (12 + Math.pow(rel, 0.55) * 65) * devicePixelRatio;
+
+    /* colour: dark theme = greys getting brighter with repetition;
+       inverted theme = fixed #28282a, opacity grows with repetition */
+    if (!inverted){
+      const l = Math.min(200, nd.shade + rel * 70);
+      ctx.fillStyle = `rgb(${l},${l},${l+6})`;
+    } else {
+      ctx.fillStyle = "#28282a";
+    }
+    ctx.font = `${size}px ${nd.font}`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(nd.rot + Math.sin(t * nd.speed * 0.4 + nd.phase) * 0.03);
+    if (!inverted){
+      ctx.globalAlpha = 0.55 + rel * 0.4;
+    } else {
+      /* per-word base opacity from its shade (variety), + repetitions; never fully solid */
+      const base = 0.18 + (nd.shade - 60) / 80 * 0.22;
+      ctx.globalAlpha = Math.min(0.95, base + rel * 0.6);
+    }
+    ctx.fillText(nd.text, 0, 0);
+    ctx.restore();
+    ctx.globalAlpha = 1;
+
+    if (pts.length < 60) pts.push({x, y});
+  }
+
+  /* constellation lines between nearby words */
+  ctx.lineWidth = devicePixelRatio * 0.5;
+  const link = MAXR * 0.35;
+  for (let i = 0; i < pts.length; i++){
+    for (let j = i+1; j < pts.length; j++){
+      const dx = pts[i].x - pts[j].x, dy = pts[i].y - pts[j].y;
+      const d = Math.hypot(dx, dy);
+      if (d < link){
+        ctx.strokeStyle = theme().lines(0.05 * (1 - d/link));
+        ctx.beginPath();
+        ctx.moveTo(pts[i].x, pts[i].y);
+        ctx.lineTo(pts[j].x, pts[j].y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  /* glitch discharges between coinciding words */
+  const nowT = performance.now();
+  for (let gi = glitches.length - 1; gi >= 0; gi--){
+    const g = glitches[gi];
+    const age = nowT - g.born;
+    if (age > g.life){ glitches.splice(gi, 1); continue; }
+    const na = nodes.get(g.a), nb = nodes.get(g.b);
+    if (!na || !nb || na.x === undefined || nb.x === undefined) continue;
+
+    const k = 1 - age / g.life;                 // 1 → 0 fade
+    const flick = Math.random() < 0.75;         // random dropout = flicker
+    if (!flick) continue;
+
+    ctx.save();
+    ctx.globalCompositeOperation = inverted ? "multiply" : "lighter";
+
+    if (na === nb){
+      /* same word twice → radial burst around it */
+      const spikes = 5 + (Math.random() * 4 | 0);
+      for (let s = 0; s < spikes; s++){
+        const a1 = Math.random() * Math.PI * 2;
+        const len = (20 + Math.random() * 80) * devicePixelRatio * k;
+        ctx.strokeStyle = theme().glitch(0.5 * k);
+        ctx.lineWidth = devicePixelRatio * (Math.random() < .2 ? 2 : 1);
+        ctx.beginPath();
+        ctx.moveTo(na.x, na.y);
+        ctx.lineTo(na.x + Math.cos(a1) * len, na.y + Math.sin(a1) * len);
+        ctx.stroke();
+      }
+    } else {
+      /* jagged lightning between the two words, re-randomised every frame */
+      const segs = 7;
+      const dx = nb.x - na.x, dy = nb.y - na.y;
+      const nx = -dy, ny = dx;                  // perpendicular
+      const nl = Math.hypot(nx, ny) || 1;
+      ctx.strokeStyle = theme().glitch(0.55 * k);
+      ctx.lineWidth = devicePixelRatio * (Math.random() < .15 ? 2.5 : 1);
+      ctx.beginPath();
+      ctx.moveTo(na.x, na.y);
+      for (let s = 1; s < segs; s++){
+        const p = s / segs;
+        const off = (Math.random() - .5) * 40 * devicePixelRatio * k;
+        ctx.lineTo(na.x + dx * p + nx / nl * off, na.y + dy * p + ny / nl * off);
+      }
+      ctx.lineTo(nb.x, nb.y);
+      ctx.stroke();
+    }
+
+    /* horizontal scanline slashes near the event */
+    const slashes = 1 + (Math.random() * 2 | 0);
+    for (let s = 0; s < slashes; s++){
+      const ref = Math.random() < .5 ? na : nb;
+      const sy = ref.y + (Math.random() - .5) * 120 * devicePixelRatio;
+      const sw = (60 + Math.random() * 260) * devicePixelRatio;
+      const sx = ref.x - sw / 2 + (Math.random() - .5) * 80 * devicePixelRatio;
+      ctx.fillStyle = theme().slash(0.18 * k);
+      ctx.fillRect(sx, sy, sw, devicePixelRatio * (Math.random() < .3 ? 3 : 1));
+    }
+
+    ctx.restore();
+  }
+
+  /* session name & location — small serif caption, bottom-left corner */
+  const cap = [sessName.value.trim(), sessLoc.value.trim()].filter(Boolean).join(" · ");
+  if (cap){
+    ctx.font = `italic ${13 * devicePixelRatio}px Georgia, serif`;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = inverted ? "rgba(40,40,42,.8)" : "rgba(210,210,218,.8)";
+    ctx.fillText(cap, 18 * devicePixelRatio, H - 16 * devicePixelRatio);
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
