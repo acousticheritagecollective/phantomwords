@@ -148,6 +148,7 @@
     <button id="expCsv">CSV</button>
     <button id="expTxt">TXT</button>
     <button id="expPng">PNG</button>
+    <button id="mode" title="switch cloud / timeline">Timeline</button>
     <button id="invert" title="invert colours">◐</button>
     <button id="reset" class="danger">Reset</button>
   </div>
@@ -210,16 +211,28 @@ let pollDelay = 2000;                 // base poll interval (ms)
 /* ---- glitch: two words arriving within 3s spark a discharge ---- */
 const GLITCH_WINDOW = 3000;   // ms between arrivals to trigger
 const glitches = [];
+const links = [];             // straight lines: previous word → new word
 let lastArrival = null;       // {word, at}
+let tMin = Infinity, tMax = -Infinity;   // timecode span of the session
 
 function ingest(row){
   const w = String(row.w).slice(0, 40);
   total++;
   counts.set(w, (counts.get(w) || 0) + 1);
-  addLog(w, Number(row.t));
-  ensureNode(w);
+  const tc = Number(row.t) || Date.now();
+  addLog(w, tc);
+  ensureNode(w, tc);
+  if (tc < tMin) tMin = tc;
+  if (tc > tMax) tMax = tc;
 
   const now = performance.now();
+
+  /* timeline thread: permanent straight line previous word → new word */
+  if (lastArrival && lastArrival.word !== w){
+    links.push({ a: lastArrival.word, b: w });
+    if (links.length > 2000) links.shift();   // safety cap only
+  }
+
   if (lastArrival && now - lastArrival.at < GLITCH_WINDOW && glitches.length < 5){
     glitches.push({
       a: lastArrival.word, b: w,
@@ -367,6 +380,10 @@ resetBtn.onclick = async () => {
   rankEl.replaceChildren();
   sessName.value = "";
   sessLoc.value  = "";
+  links.length = 0;
+  glitches.length = 0;
+  lastArrival = null;
+  tMin = Infinity; tMax = -Infinity;
   ctx.fillStyle = theme().bg;
   ctx.fillRect(0,0,W,H);
   emptyEl.style.opacity = 1;
@@ -403,6 +420,13 @@ const THEMES = {
 };
 const theme = () => inverted ? THEMES.light : THEMES.dark;
 
+let mode = "cloud";
+const modeBtn = document.getElementById("mode");
+modeBtn.onclick = () => {
+  mode = mode === "cloud" ? "timeline" : "cloud";
+  modeBtn.textContent = mode === "cloud" ? "Timeline" : "Cloud";  // shows destination
+};
+
 document.getElementById("invert").onclick = () => {
   inverted = !inverted;
   ctx.fillStyle = theme().bg;
@@ -430,10 +454,11 @@ function resize(){
 addEventListener("resize", resize);
 resize();
 
-function ensureNode(w){
+function ensureNode(w, tc){
   if (nodes.has(w)) return;
   nodes.set(w, {
     text: w,
+    t0: tc,                                   // first-arrival timecode
     count: 1,
     baseAngle: Math.random() * Math.PI * 2,   // fixed direction from center
     rot: (Math.random() - .5) * 0.07,         // resting tilt ±0.035 rad ≈ ±2°
@@ -497,16 +522,34 @@ function frame(t){
       + Math.sin(t * nd.speed * 0.23 + nd.phase2)    * 0.08
     );
 
-    const radF = nd.r + wob;                 // 0 = centre, 1 = boundary
-    const ang = nd.baseAngle + angDrift;
-    const c = Math.cos(ang), s = Math.sin(ang);
-    /* superellipse boundary: stretches the cloud to the full width AND height
-       of the screen and bulges toward the corners, breaking the circle.
-       P = 2 → pure ellipse · 3.5 → rounded rectangle (current) · 8 → almost rect */
-    const P = 3.5;
-    const shape = Math.pow(Math.pow(Math.abs(c),P) + Math.pow(Math.abs(s),P), -1/P);
-    const x = CX + c * radF * MAXRX * shape;
-    const y = CY + s * radF * MAXRY * shape;
+    let tx, ty;
+    if (mode === "cloud"){
+      const radF = nd.r + wob;               // 0 = centre, 1 = boundary
+      const ang = nd.baseAngle + angDrift;
+      const c = Math.cos(ang), s = Math.sin(ang);
+      /* superellipse boundary: stretches the cloud to the full width AND height
+         of the screen and bulges toward the corners, breaking the circle.
+         P = 2 → pure ellipse · 3.5 → rounded rectangle (current) · 8 → almost rect */
+      const P = 3.5;
+      const shape = Math.pow(Math.pow(Math.abs(c),P) + Math.pow(Math.abs(s),P), -1/P);
+      tx = CX + c * radF * MAXRX * shape;
+      ty = CY + s * radF * MAXRY * shape;
+    } else {
+      /* timeline: X fixed by the word's first-arrival timecode,
+         scaled from the first word (left) to the latest (right).
+         All movement lives on the Y axis. */
+      const span = tMax > tMin ? (nd.t0 - tMin) / (tMax - tMin) : 0.5;
+      tx = W * 0.05 + span * W * 0.90;
+      const offY = Math.sin(nd.baseAngle * 3);           // fixed per-word lane
+      ty = CY + ( offY * 0.34                            // spread around the axis
+                + wob * 3                                // breathing (Y only)
+                + angDrift * 0.5 ) * MAXRY;              // wander (Y only)
+    }
+    /* smooth easing → switching modes morphs instead of jumping */
+    if (nd.px === undefined){ nd.px = tx; nd.py = ty; }
+    nd.px += (tx - nd.px) * 0.035;
+    nd.py += (ty - nd.py) * 0.035;
+    const x = nd.px, y = nd.py;
     nd.x = x; nd.y = y;   // remembered for glitch rendering
 
     /* trajectory trace: sample the path every 200ms, keep ~8s of history */
@@ -579,6 +622,28 @@ function frame(t){
         ctx.stroke();
       }
     }
+  }
+
+  /* timeline axis */
+  if (mode === "timeline"){
+    ctx.lineWidth = devicePixelRatio * 0.5;
+    ctx.strokeStyle = theme().lines(0.15);
+    ctx.beginPath();
+    ctx.moveTo(W * 0.03, CY);
+    ctx.lineTo(W * 0.97, CY);
+    ctx.stroke();
+  }
+
+  /* timeline thread: permanent lines linking arrivals in chronological order */
+  ctx.lineWidth = devicePixelRatio * 0.7;
+  ctx.strokeStyle = theme().lines(0.3);
+  for (const L of links){
+    const a = nodes.get(L.a), b = nodes.get(L.b);
+    if (!a || !b || a.x === undefined || b.x === undefined) continue;
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
   }
 
   /* glitch discharges between coinciding words */
