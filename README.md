@@ -1,3 +1,7 @@
+
+<img width="2344" height="1546" alt="phantomwords-2026-07-03T22-16-52" src="https://github.com/user-attachments/assets/e12be14c-7751-4e89-bd9f-5740eff109da" />
+
+
 # Phantom Words — cloud behaviour guide
 
 All visual behaviour lives in **`artist.html`**, inside the `<script>` block.
