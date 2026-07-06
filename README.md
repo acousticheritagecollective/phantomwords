@@ -1,5 +1,6 @@
 
-<img width="2344" height="1546" alt="phantomwords-2026-07-03T22-16-52" src="https://github.com/user-attachments/assets/e12be14c-7751-4e89-bd9f-5740eff109da" />
+<img width="1507" height="766" alt="Screenshot 2026-07-06 at 10 20 34" src="https://github.com/user-attachments/assets/b32cc9f8-4f3f-4583-8b98-7cebbf1e0033" />
+
 
 ## TEST AT
 AUDIENCE WORD TRANSMITTER: https://acousticheritagecollective.org/phantomwords/audience.html
